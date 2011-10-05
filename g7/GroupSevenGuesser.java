@@ -55,13 +55,10 @@ public class GroupSevenGuesser extends Guesser {
 		{
 			alGuess = new ArrayList< Integer >();
 			System.out.println();
-			for (int j = 0; j < guessSize; ++j) 
+			for (int j = 0; j < guessSize && unguessed.size() > 0; ++j)
 			{
-				if (unguessed.size() > 0)
-				{
-					int next = unguessed.remove(random.nextInt(unguessed.size()));
-					alGuess.add(next);
-				}
+				int next = unguessed.remove(random.nextInt(unguessed.size()));
+				alGuess.add(next);
 			}
 			gscReturn = new GuesserAction("q", alGuess);
 		}
