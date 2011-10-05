@@ -140,7 +140,7 @@ class Combinator implements Iterable <int[]> {
 	/* Size of one variable's domain
 	 * This is an approximate estimate
 	 */
-	private int[] domain(int var_i)
+	public int[] domain(int var_i)
 	{
 		if (var_i <= 0 || var_i > variable_count)
 			throw new IllegalArgumentException();
