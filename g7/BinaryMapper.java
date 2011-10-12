@@ -6,10 +6,11 @@ import java.util.Random;
 import mapthatset.sim.GuesserAction;
 import mapthatset.sim.Mapper;
 
-public class G7Mapper extends Mapper {
+public class BinaryMapper extends Mapper {
 
-	public String getID() {
-		return "G7: Mapper";
+	public String getID()
+	{
+		return "G7: Binary Mapper";
 	}
 
 	private Random gen = new Random();
