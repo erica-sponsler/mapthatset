@@ -1,9 +1,11 @@
-package mapthatset.g7;
+package mapthatset.g7.dev;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Vector;
+
+import mapthatset.g7.Combinator;
 
 class QueryNode {
 

@@ -1,11 +1,9 @@
 package mapthatset.g7;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
-import java.util.NoSuchElementException;
+import java.util.LinkedList;
 import java.util.Random;
 import java.util.Vector;
 
@@ -19,333 +17,234 @@ public class G7Guesser extends Guesser {
 		return "G7: Guesser";
 	}
 
+	/* Number of variables */
 	private int variable_count;
+
+	/* Number of distinct values */
 	private int value_count;
-	private int round;
+
+	/* Last action was a guess */
 	private boolean guess;
+
+	/* Last query issued */
 	private ArrayList <Integer> query;
-	private Combinator engine;
-	private Random random;
+
+	/* Random generator */
+	private static final Random random = new Random();
+
+	/* History of queries and answers */
 	private Vector <Pair <ArrayList <Integer>, ArrayList <Integer>>> history;
+
+	/* Engine that solves the problem
+	 * as a constraint satisfaction problem
+	 * Will use this to get domains of variables
+	 * and find the set of all solutions when
+	 * possible and refine them
+	 */
+	private Combinator csp_engine;
+
+	/* Dependency engine
+	 * Will identify functional dependencies
+	 * and remove variables not used
+	 */
+	private Dependency dep_engine;
+
+	/* Active variables */
+	private HashSet <Integer> active;
+
+	/* Unused variables in the last round */
+	private LinkedList <Integer> unused;
+
+	/* Variables have been combined in a query
+	 * First query does not count
+	 */
+	private HashSet <Pair <Integer, Integer>> combined;
+
+	/* All solutions */
+	private int[][] solutions;
+
+	/* Dividing of variables */
+	private int[] dividing;
+
+	/* Phase in dividing */
+	private int dividing_pos;
 
 	public void startNewMapping(int len)
 	{
 		variable_count = len;
 		value_count = 0;
-		round = 0;
-		guess = false;
-		binary = false;
-		distinct = false;
-		tree = false;
-		cross = false;
-		random = new Random();
-		engine = new Combinator(len);
+		solutions = null;
+		if (variable_count == 1) {
+			int[][] one = {{1}};
+			solutions = one;
+		}
+		csp_engine = new Combinator(len);
+		dep_engine = new Dependency(csp_engine);
+		active = new HashSet <Integer> ();
+		unused = new LinkedList <Integer> ();
+		for (int i = 1 ; i <= variable_count ; ++i) {
+			active.add(i);
+			unused.add(i);
+		}
+		combined = new HashSet <Pair <Integer, Integer>> ();
 		history = new Vector <Pair <ArrayList <Integer>, ArrayList <Integer>>> ();
+		query = new ArrayList <Integer> ();
+		dividing = new int [1];
+		dividing[0] = variable_count;
+		dividing_pos = 0;
 	}
 
 	public GuesserAction nextAction()
 	{
-		round++;
-		query = new ArrayList <Integer> ();
-		for (int i = 1 ; i <= variable_count && query != null ; ++i) {
-			int[] domain = engine.domain(i);
-			if (domain.length == 1)
-				query.add(domain[0]);
-			else
-				query = null;
-		}
-		if (query != null) {
-			guess = true;
+		if (guess)
 			return new GuesserAction("g", query);
+		query.clear();
+		int size = dividing[dividing_pos++];
+		while (query.size() != size) {
+			int var = unused.removeFirst();
+			boolean conflict = false;
+			for (int svar : query)
+				if (combined.contains(new Pair <Integer, Integer> (var, svar))) {
+					conflict = true;
+					break;
+				}
+			if (conflict)
+				unused.addLast(var);
+			else
+				query.add(var);
 		}
-		if (value_count == 0)
-			query = firstQuery();
-		else if (binary)
-			query = binaryQuery();
-		else if (distinct)
-			query = distinctQuery();
-		else if (tree)
-			query = treeQuery();
-		else if (cross)
-			query = crossQuery();
-		guess = false;
 		return new GuesserAction("q", query);
 	}
 
 	public void setResult(ArrayList <Integer> result)
 	{
-		if (guess) return;
-		history.add(new Pair <ArrayList <Integer>, ArrayList <Integer>> (query, result));
-		engine.constraint(toArray(query), toArray(result));
-		if (round == 1) {
-			value_count = result.size();
-			if (value_count == 2)
-				binary = true;
-			else if (value_count == variable_count)
-				distinct = true;
-		//	else
-		//		tree = true;
-			else
-				cross = true;
+		/* Ignore guess results */
+		if (guess) {
+			guess = false;
 			return;
 		}
-		if (binary)
-			binaryResult(result);
-		else if (distinct)
-			distinctResult(result);
-		else if (tree)
-			treeResult(result);
-		else if (cross)
-			crossResult(result);
-	}
-
-	/* Ask for all variables */
-	private ArrayList <Integer> firstQuery()
-	{
-		ArrayList <Integer> list = new ArrayList <Integer> ();
-		for (int i = 1 ; i <= variable_count ; ++i)
-			list.add(i);
-		return list;
-	}
-
-	/* Optimal strategy for binary mapper */
-	private boolean binary;
-
-	private HashSet <Integer> active_variables;
-
-	private ArrayList <Integer> binaryQuery()
-	{
-		if (round == 2) {
-			active_variables = new HashSet <Integer> ();
-			for (int i = 1 ; i <= variable_count ; ++i)
-				active_variables.add(i);
+		/* Update history */
+		history.add(new Pair <ArrayList <Integer>, ArrayList <Integer>> (query, result));
+		/* Add constraint to the engine */
+		csp_engine.constraint(toArray(query), toArray(result));
+		/* Check bypassing of last part query */
+		if (dividing_pos + 1 == dividing.length && dividing_pos != 0) {
+			/* All variables of previous groups */
+			HashSet <Integer> restVars = new HashSet <Integer> ();
+			int h = history.size() - 1 - dividing_pos;
+			for (; h != history.size() ; ++h)
+				restVars.addAll(history.get(h).fst);
+			/* Get values of first groups */
+			HashSet <Integer> restVals = allDomains(restVars);
+			/* Get values of last group */
+			HashSet <Integer> remVals = allDomains(unused);
+			/* All values */
+			HashSet <Integer> allVals = addSets(restVals, remVals);
+			/* If unused values are equal to the number of remaining */
+			if (allVals.size() - restVals.size() == unused.size()) {
+				/* Constraint remaining variables
+				 * to take remaining unused values
+				 */
+				csp_engine.constraint(toArray(unused), toArray(remVals));
+				dividing_pos++;
+			}
 		}
-		ArrayList <Integer> list = new ArrayList <Integer> ();
-		for (int i = 0 ; i != 2 && active_variables.size() != 0 ; ++i) {	
-			int x = active_variables.iterator().next();
-			active_variables.remove(x);
-			list.add(x);
+		/* Check if first result and update value count */
+		if (value_count == 0)
+			value_count = result.size();
+		else
+			/* Check combinations */
+			for (int var_i : query)
+				for (int var_j : query)
+					if (var_i != var_j) {
+						combined.add(new Pair<Integer, Integer> (var_i, var_j));
+						combined.add(new Pair<Integer, Integer> (var_j, var_i));
+					}
+		/* Try to find all solutions */
+		csp_engine.timeoutLimit(100);
+		/* If not found */
+		if (solutions == null)
+			/* Start from scratch */
+			solutions = csp_engine.findall();
+		else
+			/* Filter already known solutions */
+			solutions = csp_engine.filter(solutions);
+		/* Check if problem can be solved */
+		int[] solution = dep_engine.solve();
+		/* Set unique solution for next guess */
+		if (solution != null) {
+			solutions = new int [1][];
+			solutions[0] = solution;
+			query.clear();
+			for (int i = 0 ; i != solutions[0].length ; ++i)
+				query.add(solutions[0][i]);
+			guess = true;
+			return;
 		}
-		return list;
-	}
-
-	private void binaryResult(ArrayList <Integer> result)
-	{
-		if (result.size() == 2)
-			active_variables.add(query.get(0));
-		if (active_variables.size() == 0)
-			engine.findAll();
-	}
-
-	/* Optimal strategy for distinct mapper */
-	private boolean distinct;
-
-	private ArrayList <Integer> distinctQuery()
-	{
-		ArrayList <Integer> list = new ArrayList <Integer> ();
-		int limit = ceilLog(variable_count);
-		int set_size = 1 << (limit - round + 1);
-		int var = 1;
+		/* Remove unary domain variables from the pool */
+		boolean last;
 		do {
-			for (int i = 0 ; i != set_size ; ++i) {
-				if (var > variable_count)
-					return list;
-				list.add(var++);
-			}
-			var += set_size;
-		} while (var <= variable_count);
-		return list;
-	}
-
-	private void distinctResult(ArrayList <Integer> result)
-	{
-		ArrayList <Integer> rest_vars = new ArrayList <Integer> ();
-		ArrayList <Integer> rest_vals = new ArrayList <Integer> ();
-		for (int i = 1 ; i <= variable_count ; ++i) {
-			if (!query.contains(i))
-				rest_vars.add(i);
-			if (!result.contains(i))
-				rest_vals.add(i);
-		}
-		engine.constraint(toArray(rest_vars), toArray(rest_vals));
-	}
-
-	/* Tree strategy
-	 * Optimal for distinct mappings
-	 * Does not seem to work for other cases
-	 */
-	private boolean tree;
-
-	private QueryNode root;
-
-	private Vector <QueryNode> query_nodes;
-
-	private ArrayList <Integer> treeQuery()
-	{
-		/* Set the root of the tree */
-		if (round == 2) {
-			root = QueryNode.root(history.get(0).fst);
-			root.set(history.get(0).snd, engine);
-		}
-		/* Get all open query nodes */
-		Vector <QueryNode> open = QueryNode.open(root);
-		/* Keep best subset of query nodes */
-		query_nodes = new Vector <QueryNode> ();
-		int best_value = 0;
-		/* If not many open nodes */
-		if (open.size() <= 16) {
-			/* Iterate through all subsets */
-			SubsetIterable <QueryNode> open_subsets = new SubsetIterable <QueryNode> (open);
-			next_subset:
-			for (Vector <QueryNode> open_subset : open_subsets) {
-				int value = 0;
-				for (int i = 0 ; i != open_subset.size() ; ++i)
-					value += open_subset.get(i).variables().size();
-				if (value <= best_value)
-					continue;
-				/* Check the subset has independent parts */
-				for (int i = 0 ; i != open_subset.size() ; ++i)
-					for (int j = 0 ; j != i ; ++j)
-						if (!independent(open_subset.get(i).values(), open_subset.get(j).values()))
-							continue next_subset;
-				/* Set as best so far */
-				best_value = value;
-				query_nodes = open_subset;
-			}
-		} else {
-			int repeats = 1000;
-			/* Start from a random query */
-			for (int repeat = 0 ; repeat != repeats ; ++repeat) {
-				shuffle(open);
-				Vector <QueryNode> open_subset = new Vector <QueryNode> ();
-				open_subset.add(open.get(0));
-				next_query:
-				for (int i = 1 ; i != open.size() ; ++i) {
-					for (QueryNode q : open_subset)
-						if (!independent(q.values(), open.get(i).values()))
-							continue next_query;
-					open_subset.add(open.get(i));
+			last = true;
+			for (int var : active)
+				if (csp_engine.domain(var).length == 1) {
+					last = false;
+					active.remove(var);
+					break;
 				}
-				int value = 0;
-				for (int i = 0 ; i != open_subset.size() ; ++i)
-					value += open_subset.get(i).variables().size();
-				if (value > best_value) {
-					query_nodes = open_subset;
-					best_value = value;
-				}
-			}
+		} while (!last);
+		/* Remove dependencies from the pool */
+		//TODO remove dependencies
+		/* Check if end of round and restart */
+		if (dividing_pos == dividing.length) {
+			HashSet <Integer> active_vals = allDomains(active);
+			int groups = 2;
+			//TODO figure out groups based on active variables
+			//     and active values
+			dividing = divide(active.size(), groups);
+			dividing_pos = 0;
+			unused.clear();
+			/* Reset the unused variables */
+			for (int var : active)
+				unused.add(var);
 		}
-		/* Get next queries by assembling best independent subset */
-		boolean first = true;
-		ArrayList <Integer> list = new ArrayList <Integer> ();
-		for (QueryNode node : query_nodes) {
-			if (!first)
-				System.out.print(" + ");
-			else
-				first = false;
-			System.out.print("[" + toString(node.variables()) + "](" + node.values().size() + ")");
-			list.addAll(node.variables());
-		}
-		System.out.println("");
-		return list;
 	}
 
-	private void treeResult(ArrayList <Integer> answer)
+	private HashSet <Integer> allDomains(Collection <Integer> vars)
 	{
-		for (QueryNode q : query_nodes) {
-			ArrayList <Integer> values = new ArrayList <Integer> ();
-			for (int value : answer)
-				if (q.values().contains(value))
-					values.add(value);
-			q.set(values, engine);
+		HashSet <Integer> vals = new HashSet <Integer> ();
+		for (int var : vars) {
+			int[] domain = csp_engine.domain(var);
+			for (int i = 0 ; i != domain.length ; ++i)
+				vars.add(domain[i]);
 		}
-		engine.findAllTimeout(500);
-		try {
-			engine.findAll();
-		} catch (NoSuchElementException e) {}
+		return vals;
 	}
 
-	private boolean cross;
-
-	private int[] uses;
-
-	private HashSet <Integer> combined;
-
-	private class UseCompare implements Comparator <Integer> {
-
-		public int compare(Integer var_i, Integer var_j)
-		{
-			return uses[var_i - 1] - uses[var_j - 1];
-		}
-	}
-
-	private ArrayList <Integer> crossQuery()
+	private static int nearestInt(double n)
 	{
-		ArrayList <Integer> list = new ArrayList <Integer> ();
-		if (round == 2) {
-			uses = new int [variable_count];
-			for (int i = 0 ; i != variable_count ; ++i)
-				uses[i] = 0;
-			combined = new HashSet <Integer> ();
-		}
-		int limit = (int) Math.ceil(Math.sqrt(variable_count));
-		int active = 0;
-		Integer[] variables = new Integer [variable_count];
-		for (int var = 1 ; var <= variable_count ; ++var)
-			if (engine.domain(var).length != 1)
-				variables[active++] = var;
-		Arrays.sort(variables, 0, active, new UseCompare());
-		next_var:
-		for (int i = 0 ; i != active && list.size() != limit ; ++i) {
-			int var_i = variables[i];
-			for (int var_j : list)
-				if (combined.contains(var_i * variable_count + var_j))
-					continue next_var;
-			list.add(var_i);
-			uses[var_i - 1]++;
-		}
-		return list;
-	}
-
-	private void crossResult(ArrayList <Integer> answer)
-	{
-		for (int var_i : query)
-			for (int var_j : query) {
-				if (var_i >= var_j) continue;
-				combined.add(var_i * variable_count + var_j);
-				combined.add(var_j * variable_count + var_i);
-			}
-		engine.findAllTimeout(500);
-		try {
-			engine.findAll();
-		} catch (NoSuchElementException e) {}
-	}
-
-	private static boolean independent(Collection <?> c1, Collection <?> c2)
-	{
-		for (Object o : c1)
-			if (c2.contains(o))
-				return false;
-		return true;
-	}
-
-	private static int ceilLog(int n)
-	{
-		int i = 0;
-		while ((1 << i) < n)
+		int i = (int) n;
+		if (n > i + 0.5)
 			i++;
 		return i;
 	}
 
-	private <E> void shuffle(Vector <E> arr)
+	private int[] divide(int all, int parts)
 	{
-		int s = arr.size();
-		for (int i = 0 ; i != s ; ++i) {
-			int r = random.nextInt(s - i) + i;
-			E t = arr.get(r);
-			arr.set(r, arr.get(i));
-			arr.set(i, t);
+		int[] res = new int [parts];
+		int i = 0;
+		while (parts != 0) {
+			res[i] = nearestInt(all / (double) parts);
+			all -= res[i++];
+			parts--;
 		}
+		return res;
+	}
+
+	private HashSet <Integer> addSets(HashSet <Integer> a, HashSet <Integer> b)
+	{
+		HashSet <Integer> r = new HashSet <Integer> (a);
+		r.addAll(b);
+		return r;
 	}
 
 	private static int[] toArray(Collection <Integer> al)

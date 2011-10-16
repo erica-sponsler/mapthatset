@@ -1,8 +1,9 @@
-package mapthatset.g7;
+package mapthatset.g7.dev;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 
+import mapthatset.g7.Combinator;
 import mapthatset.sim.Guesser;
 import mapthatset.sim.GuesserAction;
 

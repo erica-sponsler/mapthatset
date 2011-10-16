@@ -1,10 +1,12 @@
-package mapthatset.g7;
+package mapthatset.g7.dev;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Random;
 import java.util.Vector;
 
+import mapthatset.g7.Combinator;
+import mapthatset.g7.Pair;
 import mapthatset.sim.Guesser;
 import mapthatset.sim.GuesserAction;
 

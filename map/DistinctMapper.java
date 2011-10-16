@@ -1,4 +1,4 @@
-package mapthatset.g7;
+package mapthatset.map;
 
 import java.util.ArrayList;
 import java.util.Random;
