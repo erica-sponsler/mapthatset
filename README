@@ -1,0 +1,15 @@
+BinaryAndDistinctMapper - Maps exactly half of the set to a binary mapping, and the other half to a distinct mapping.  Which half is mapped to what type of map is determined randomly.
+
+BinaryAndRandomMapper - Maps exactly half of the set to a binary mapping, and the other half to a random mapping.  Which half is mapped to what type of map is determined randomly.
+
+BinaryMapper - Maps all numbers in the set to one of two values.  The cardinality of the mapping is 2.
+
+DistinctMapper - Maps all numbers to distinct values.  The cardinality of the starting set and the map are both N.
+
+MapToXMapper - Maps all numbers in the set to one of X values.  X is set internally.  The cardinality of the mapping is X.
+
+RandomBinaryAndDistinctMapper - Maps a random number of the set to a binary mapping, and the rest to a distinct mapping.
+
+RandomBinaryAndRandomMapper - Maps a random number of the set to a binary mapping, and the rest to a random mapping.
+
+RandomMapper - Maps all numbers in the set to random values.
