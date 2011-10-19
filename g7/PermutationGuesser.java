@@ -42,7 +42,12 @@ public class PermutationGuesser extends Guesser {
 		if(!init){
 			return getFirstQuery();
 		}
-		return null;
+		if( m / Math.pow(2, turn) == 0 ){
+			return new GuesserAction("g", generateFinalGuess());
+		}
+		ArrayList<Integer> query = new ArrayList<Integer>();
+		query.addAll(generateNextQuery());
+		return new GuesserAction("q",query);
 	}
 
 	@Override
@@ -105,6 +110,17 @@ public class PermutationGuesser extends Guesser {
 		}	
 		currentQuery = query;	
 		return currentQuery;
+	}
+	
+	
+	private ArrayList<Integer> generateFinalGuess(){
+		ArrayList<Integer> guess = new ArrayList<Integer>();
+		for(int i=0; i<m; i++){
+			if(X.get(i).size() != 1){
+				System.out.println("FATAL: Making an incorrect guess!!");
+			}
+			guess.addAll(X.get(i));
+		}
 	}
 	
 	
