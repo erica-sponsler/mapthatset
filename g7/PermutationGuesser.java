@@ -56,16 +56,18 @@ public class PermutationGuesser extends Guesser {
 		if(!init){
 			initialize(alResult);
 		}
-		Set<Integer> result = new HashSet<Integer>();
-		result.addAll(alResult);
-		for(int i=0; i<m; i++){
-			if(currentQuery.contains(i+1)){
-				X.get(i).retainAll(result);				
-			}else{
-				X.get(i).removeAll(result);
+		else{
+			Set<Integer> result = new HashSet<Integer>();
+			result.addAll(alResult);
+			for(int i=0; i<m; i++){
+				if(currentQuery.contains(i+1)){
+					X.get(i).retainAll(result);				
+				}else{
+					X.get(i).removeAll(result);
+				}
 			}
 		}
-
+		printStatus();
 	}
 
 	@Override
@@ -121,6 +123,7 @@ public class PermutationGuesser extends Guesser {
 			}
 			guess.addAll(X.get(i));
 		}
+		return guess;
 	}
 	
 	
